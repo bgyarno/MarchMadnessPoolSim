@@ -25,8 +25,8 @@ class GameSim:
         self.team2_net = self.team2_off - self.team2_def
 
     def team1_spread(self):
-        pace_adj_prediction = ((self.team1_net * self.team2_net) / self.avg_tempo) * (
-                (self.team1_tempo - self.team2_tempo) / 100)
+        pace_adj_prediction = ((self.team1_tempo * self.team2_tempo) / self.avg_tempo) * (
+                (self.team2_net - self.team1_net) / 100)
         return (pace_adj_prediction)
 
     def team1_win_prob(self):
