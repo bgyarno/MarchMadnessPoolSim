@@ -5,22 +5,23 @@ import scipy.stats as stats
 
 
 class GameSim:
-    def __init__(self, team1, team2):
-        self.score_stdev = 8
+    def __init__(self, team1, team2, source):
+        self.score_stdev = 8 ##todo: validate this sd
         self.team1 = team1
         self.team2 = team2
+        self.source = source
         self.game_rand = random.random()
         self.team1_score_rand = random.random()
         self.team2_score_rand = random.random()
-        self.team1_off = self.team1.off_rating()
-        self.team1_def = self.team1.def_rating()
-        self.team1_tempo = self.team1.tempo_rating()
-        self.team2_off = self.team2.off_rating()
-        self.team2_def = self.team2.def_rating()
-        self.team2_tempo = self.team2.tempo_rating()
-        self.avg_tempo = self.team1.league_avg_tempo()
-        self.avg_off = self.team1.league_avg_off()
-        self.avg_def = self.team1.league_avg_def()
+        self.team1_off = self.team1.off_rating(self.source)
+        self.team1_def = self.team1.def_rating(self.source)
+        self.team1_tempo = self.team1.tempo_rating(self.source)
+        self.team2_off = self.team2.off_rating(self.source)
+        self.team2_def = self.team2.def_rating(self.source)
+        self.team2_tempo = self.team2.tempo_rating(self.source)
+        self.avg_tempo = self.team1.league_avg_tempo(self.source)
+        self.avg_off = self.team1.league_avg_off(self.source)
+        self.avg_def = self.team1.league_avg_def(self.source)
         self.team1_net = self.team1_off - self.team1_def
         self.team2_net = self.team2_off - self.team2_def
 
