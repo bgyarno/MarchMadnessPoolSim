@@ -1,13 +1,7 @@
 import requests
+import json
 from lxml import html
 from MarchMadnessPoolSim import team_index
-
-
-# class bracket_object:
-#     def __init__(self):
-#         self.bracket_dict = {'regions': []}
-# bracket = bracket_object
-# print(bracket.bracket_dict())
 
 
 def get_region_index(bracket_dict, region):
@@ -37,7 +31,6 @@ def build_game_object(bracket_dict, region, game_id):
 def add_teams(bracket_dict, team, seed, region, game_id, team_num):
     region_index = get_region_index(bracket_dict, region)
     game_id_index = get_game_id_index(bracket_dict, region, game_id)
-
     ## define team slot
     if team_num == 'TBD':
         if 'team1' in bracket_dict['regions'][region_index]['games'][game_id_index]:
@@ -58,9 +51,11 @@ def add_teams(bracket_dict, team, seed, region, game_id, team_num):
 def team_name_validation(rows, seeded_rows):
     unmatched_teams = []
     for row_iter in seeded_rows:
-        bracket_line_elem = rows[row_iter].xpath('td')
-        bracket_team_pods = [td for td in bracket_line_elem if td.xpath('a/text()|span//text()')]
-        teams = [td.xpath('a/text()|span//text()') for td in bracket_team_pods]
+        # row_text = rows[row_iter].xpath('td/text()|td/span/text()')
+        row_text = rows[row_iter].xpath(
+            'td/text()|td/span/a/text()|td/a/text()')  ## todo add logic for pre and post draw formats
+        team_text = row_text[1:-1]
+        teams = [[t] for t in team_text]
         ## remove team elements that do not contain team names
         teams_clean = format_teams(teams)
         if not (teams_clean):
@@ -69,11 +64,20 @@ def team_name_validation(rows, seeded_rows):
             try:
                 team_index()[team[0]]
             except KeyError:
-                unmatched_teams.append(team[0])
+                try:
+                    ## split first four matchups on backslash
+                    split_teams = [t.strip() for t in team[0].split('/')]
+                    for team_sub in split_teams:
+                        try:
+                            team_index()[team_sub]
+                        except KeyError:
+                            unmatched_teams.append(team_sub)
+                except KeyError:
+                    unmatched_teams.append(team[0])
     if unmatched_teams:
         print('Error: Improper Team Indexing - Bracket Teams ' + str(unmatched_teams))
-    else:
-        print('Success: All Teams Properly Indexed - Bracket Teams')
+    # else:
+    #     print('Success: All Teams Properly Indexed - Bracket Teams')
 
 
 def add_game_attribute(bracket_dict, region, game_id, attribute_name, key, value, value_type=str):
@@ -143,13 +147,17 @@ def format_teams(team_list):
     teams_clean = []
     for i in range(len(team_list)):
         if team_list[i] != []:
+            ## split first four teams
+            if '/' in team_list[i][0]:
+                team_list[i] = [tm.strip() for tm in team_list[i][0].split('/')]
             teams_clean.append([team.strip() for team in team_list[i]])
     return (teams_clean)
 
 
 class Bracket:
-    def __init__(self):
+    def __init__(self, bracket_dir='./bracket.js'):
         self.bracket_dict = {'regions': []}
+        self.bracket_dir = bracket_dir
 
     def seed_bracket(self):
         '''initialize bracket with Round of 64 and First Four seeding'''
@@ -158,7 +166,6 @@ class Bracket:
         tree = html.fromstring(page.content)
         rows = tree.xpath('//tbody/tr')
         seeded_rows = [i for i in range(1, len(rows)) if rows[i].xpath('td/text()')]
-        # self.bracket_dict = {'regions': []}
         bracket_half = 0
         bracket_sides = ['left', 'right']
         game_ids = ['1', '2']
@@ -170,11 +177,18 @@ class Bracket:
         team_name_validation(rows, seeded_rows)
         for row_iter in seeded_rows:
             seeds = rows[row_iter].xpath('td/text()')
+            seeds = [ x for x in seeds if x.isdigit() ]
             bracket_line_elem = rows[row_iter].xpath('td')
             edge_bracket = [(0, 5), (-5, -1)]  ## td elements from edge of bracket to consider for initial seeding
             bracket_team_pods = [td for start, finish in edge_bracket for td in bracket_line_elem[start:finish] if
                                  td.xpath('a/text()|span//text()')]
             teams = [td.xpath('a/text()|span//text()') for td in bracket_team_pods]
+            # row_text = rows[row_iter].xpath('td/text()|td/span/text()')
+            # row_text = rows[row_iter].xpath('td|td/span/a|td/a')
+            # seeds = [row_text[0].xpath('text()'), row_text[-1].xpath('text()')]
+            # team_text = row_text[1:-1]
+            # teams = [[t] for t in team_text]
+            ## todo retain above logic for pre-bracket release sims
             ## remove team elements that do not contain team names
             teams_clean = format_teams(teams)
             if not (teams_clean):
@@ -194,7 +208,6 @@ class Bracket:
 
                 ## add region to bracket_dict if not already existing
                 build_region_object(self.bracket_dict, region, bracket_side, bracket_half)
-
                 if len(game_line) == 1:
                     ## assign game_id and team if standard first round game
                     team = game_line[0]
@@ -205,7 +218,6 @@ class Bracket:
                     sub_game_id = game_ids[game_line_index] + 'b'
                     add_game_attribute(self.bracket_dict, region, game_id, 'predecessor', 'game_id', sub_game_id,
                                        value_type=list)
-
                     ## iterate over teams in play-in games and build bracket game objects and dependencies
                     for sub_team in game_line:
                         ## add game and dependencies
@@ -257,9 +269,14 @@ class Bracket:
         finals_region_object = [i for i in self.bracket_dict['regions'] if i['id'] == finals_region][0]
         build_regional_round(self.bracket_dict, finals_region_object, 'Championship Game', 'Final 4')
 
+        with open(self.bracket_dir, 'w+', encoding='utf-8') as f:
+            json.dump(self.bracket_dict, f)
+
     def initialize_bracket(self):
         '''build bracket with inital seeding and all downstream games'''
         self.seed_bracket()
         self.build_bracket()
 
         return (self.bracket_dict)
+
+Bracket().initialize_bracket()
